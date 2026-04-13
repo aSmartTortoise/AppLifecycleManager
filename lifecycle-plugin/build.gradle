@@ -1,0 +1,43 @@
+apply plugin: 'java-library'
+apply plugin: 'groovy'
+apply plugin: 'maven-publish'
+
+// composite build 下插件项目独立构建，需要自行声明仓库
+repositories {
+    google()
+    jcenter()
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation gradleApi()
+    implementation localGroovy()
+
+    // AGP 提供 Transform API 和 ASM
+    implementation 'com.android.tools.build:gradle:7.4.2'
+    // 老版 Transform 写法用到的工具类，需要显式声明
+    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'commons-codec:commons-codec:1.15'
+    implementation 'org.ow2.asm:asm-commons:9.2'
+}
+
+sourceCompatibility = "11"
+targetCompatibility = "11"
+
+publishing {
+    publications {
+        pluginMaven(MavenPublication) {
+            groupId = 'com.heima.iou'
+            artifactId = 'hmlifecyclepluginlocal'
+            version = '1.0.0'
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            // 发布到工程内的本地仓库，避免硬编码到原作者的 ~/.m2 路径
+            url = uri("${rootProject.buildDir}/repo")
+        }
+    }
+}

@@ -1,0 +1,10 @@
+// 将 lifecycle-plugin 作为 composite build 引入，
+// Gradle 会自动将 classpath 中对 'com.heima.iou:hmlifecyclepluginlocal' 的依赖
+// 替换为本地项目编译产物，无需先 publish 到 Maven 仓库
+includeBuild('lifecycle-plugin') {
+    dependencySubstitution {
+        substitute module('com.heima.iou:hmlifecyclepluginlocal') using project(':')
+    }
+}
+
+include ':app', ':lifecycle-annotation', ':lifecycle-api', ':lifecycle-apt', ':module-1'
