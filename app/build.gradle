@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
-apply plugin: 'com.hm.plugin.lifecycle'
+apply plugin: 'com.wyj.plugin.lifecycle'
 
 android {
     compileSdkVersion 33
     defaultConfig {
-        applicationId "com.hm.iou.lifecycle.demo"
+        applicationId "com.wyj.lifecycle.demo"
         minSdkVersion 19
         targetSdkVersion 33
         versionCode 1

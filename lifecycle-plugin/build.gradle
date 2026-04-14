@@ -28,8 +28,8 @@ targetCompatibility = "11"
 publishing {
     publications {
         pluginMaven(MavenPublication) {
-            groupId = 'com.heima.iou'
-            artifactId = 'hmlifecyclepluginlocal'
+            groupId = 'com.wyj.app'
+            artifactId = 'lifecyclepluginlocal'
             version = '1.0.0'
             from components.java
         }

@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(./gradlew assembleDebug)",
-      "Bash(./gradlew :lifecycle-plugin:assemble)"
+      "Bash(./gradlew :lifecycle-plugin:assemble)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebSearch",
+      "Bash(./gradlew clean:*)"
     ]
   }
 }
