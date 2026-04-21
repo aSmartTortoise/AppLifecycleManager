@@ -15,27 +15,27 @@ import java.util.Set;
 
 
 
-public class AppLifeCycleManager {
+public class ModuleLifecycleManager {
 
     public static boolean DEBUG = false;
 
-    private static List<IAppLike> APP_LIKE_LIST = new ArrayList<>();
+    private static List<IModuleLifecycle> MODULE_LIFECYCLE_LIST = new ArrayList<>();
     private static boolean REGISTER_BY_PLUGIN = false;
     private static boolean INIT = false;
 
     /**
-     * 通过插件加载 IAppLike 类
+     * 通过插件加载 IModuleLifecycle 类
      */
-    private static void loadAppLike() {
+    private static void loadModuleLifecycle() {
     }
 
-    private static void registerAppLike(String className) {
+    private static void registerModuleLifecycle(String className) {
         if (TextUtils.isEmpty(className))
             return;
         try {
             Object obj = Class.forName(className).getConstructor().newInstance();
-            if (obj instanceof IAppLike) {
-                registerAppLike((IAppLike) obj);
+            if (obj instanceof IModuleLifecycle) {
+                registerModuleLifecycle((IModuleLifecycle) obj);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -43,13 +43,13 @@ public class AppLifeCycleManager {
     }
 
     /**
-     * 注册IAppLike
+     * 注册 IModuleLifecycle
      *
      */
-    private static void registerAppLike(IAppLike appLike) {
+    private static void registerModuleLifecycle(IModuleLifecycle moduleLifecycle) {
         //标志我们已经通过插件注入代码了
         REGISTER_BY_PLUGIN = true;
-        APP_LIKE_LIST.add(appLike);
+        MODULE_LIFECYCLE_LIST.add(moduleLifecycle);
     }
 
     /**
@@ -61,28 +61,28 @@ public class AppLifeCycleManager {
         if (INIT)
             return;
         INIT = true;
-        loadAppLike();
+        loadModuleLifecycle();
         if (!REGISTER_BY_PLUGIN) {
-            Log.d("AppLike", "需要扫描所有类...");
+            Log.d("ModuleLifecycle", "需要扫描所有类...");
             scanClassFile(context);
         } else {
-            Log.d("AppLike", "插件里已自动注册...");
+            Log.d("ModuleLifecycle", "插件里已自动注册...");
         }
 
-        Collections.sort(APP_LIKE_LIST, new AppLikeComparator());
-        for (IAppLike appLike : APP_LIKE_LIST) {
-            appLike.onCreate(context);
+        Collections.sort(MODULE_LIFECYCLE_LIST, new PriorityComparator());
+        for (IModuleLifecycle moduleLifecycle : MODULE_LIFECYCLE_LIST) {
+            moduleLifecycle.onCreate(context);
         }
     }
 
     public static void terminate() {
-        for (IAppLike appLike : APP_LIKE_LIST) {
-            appLike.onTerminate();
+        for (IModuleLifecycle moduleLifecycle : MODULE_LIFECYCLE_LIST) {
+            moduleLifecycle.onTerminate();
         }
     }
 
     /**
-     * 扫描出固定包名下，实现了IAppLike接口的代理类
+     * 扫描出固定包名下，实现了 IModuleLifecycle 接口的代理类
      *
      * @param context
      */
@@ -92,12 +92,12 @@ public class AppLifeCycleManager {
             if (set != null) {
                 for (String className : set) {
                     if (DEBUG) {
-                        Log.d("AppLifeCycle", className);
+                        Log.d("ModuleLifecycle", className);
                     }
                     try {
                         Object obj = Class.forName(className).newInstance();
-                        if (obj instanceof IAppLike) {
-                            APP_LIKE_LIST.add((IAppLike) obj);
+                        if (obj instanceof IModuleLifecycle) {
+                            MODULE_LIFECYCLE_LIST.add((IModuleLifecycle) obj);
                         }
                     } catch (ClassNotFoundException e) {
                         e.printStackTrace();
@@ -112,10 +112,10 @@ public class AppLifeCycleManager {
     /**
      * 优先级比较器，优先级大的排在前面
      */
-    static class AppLikeComparator implements Comparator<IAppLike> {
+    static class PriorityComparator implements Comparator<IModuleLifecycle> {
 
         @Override
-        public int compare(IAppLike o1, IAppLike o2) {
+        public int compare(IModuleLifecycle o1, IModuleLifecycle o2) {
             int p1 = o1.getPriority();
             int p2 = o2.getPriority();
             return p2 - p1;

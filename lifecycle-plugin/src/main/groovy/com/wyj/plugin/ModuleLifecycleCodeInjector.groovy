@@ -9,12 +9,12 @@ import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 
-class AppLikeCodeInjector {
+class ModuleLifecycleCodeInjector {
 
-    List<String> proxyAppLikeClassList
+    List<String> proxyClassList
 
-    AppLikeCodeInjector(List<String> list) {
-        proxyAppLikeClassList = list
+    ModuleLifecycleCodeInjector(List<String> list) {
+        proxyClassList = list
     }
 
     void execute() {
@@ -42,7 +42,7 @@ class AppLikeCodeInjector {
                 ClassReader classReader = new ClassReader(inputStream)
                 // 构建一个ClassWriter对象，并设置让系统自动计算栈和本地变量大小
                 ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-                ClassVisitor classVisitor = new AppLikeClassVisitor(classWriter)
+                ClassVisitor classVisitor = new ModuleLifecycleClassVisitor(classWriter)
                 //开始扫描class文件
                 classReader.accept(classVisitor, ClassReader.EXPAND_FRAMES)
 
@@ -68,8 +68,8 @@ class AppLikeCodeInjector {
         optJar.renameTo(srcFile)
     }
 
-    class AppLikeClassVisitor extends ClassVisitor {
-        AppLikeClassVisitor(ClassVisitor classVisitor) {
+    class ModuleLifecycleClassVisitor extends ClassVisitor {
+        ModuleLifecycleClassVisitor(ClassVisitor classVisitor) {
             super(Opcodes.ASM5, classVisitor)
         }
 
@@ -79,17 +79,17 @@ class AppLikeCodeInjector {
                                   String[] exception) {
             println "visit method: " + name
             MethodVisitor mv = super.visitMethod(access, name, desc, signature, exception)
-            //找到 AppLifeCycleManager里的loadAppLike()方法
-            if ("loadAppLike" == name) {
-                mv = new LoadAppLikeMethodAdapter(mv, access, name, desc)
+            //找到 ModuleLifecycleManager里的loadModuleLifecycle()方法
+            if ("loadModuleLifecycle" == name) {
+                mv = new LoadModuleLifecycleMethodAdapter(mv, access, name, desc)
             }
             return mv
         }
     }
 
-    class LoadAppLikeMethodAdapter extends AdviceAdapter {
+    class LoadModuleLifecycleMethodAdapter extends AdviceAdapter {
 
-        LoadAppLikeMethodAdapter(MethodVisitor mv, int access, String name, String desc) {
+        LoadModuleLifecycleMethodAdapter(MethodVisitor mv, int access, String name, String desc) {
             super(Opcodes.ASM5, mv, access, name, desc)
         }
 
@@ -97,12 +97,12 @@ class AppLikeCodeInjector {
         protected void onMethodEnter() {
             super.onMethodEnter()
             println "-------onMethodEnter------"
-            proxyAppLikeClassList.forEach({proxyClassName ->
+            proxyClassList.forEach({proxyClassName ->
                 println "开始注入代码：${proxyClassName}"
                 def fullName = ScanUtil.PROXY_CLASS_PACKAGE_NAME.replace("/", ".") + "." + proxyClassName.substring(0, proxyClassName.length() - 6)
                 println "full classname = ${fullName}"
                 mv.visitLdcInsn(fullName)
-                mv.visitMethodInsn(INVOKESTATIC, "com/wyj/api/AppLifeCycleManager", "registerAppLike", "(Ljava/lang/String;)V", false);
+                mv.visitMethodInsn(INVOKESTATIC, "com/wyj/api/ModuleLifecycleManager", "registerModuleLifecycle", "(Ljava/lang/String;)V", false);
             })
         }
 

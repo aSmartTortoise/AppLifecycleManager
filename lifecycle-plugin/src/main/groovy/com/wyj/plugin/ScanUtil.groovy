@@ -9,9 +9,9 @@ class ScanUtil {
     static final PROXY_CLASS_SUFFIX = "\$\$Proxy.class"
     static final PROXY_CLASS_PACKAGE_NAME = "com/wyj/lifecycle/apt/proxy"
 
-    static final REGISTER_CLASS_FILE_NAME = "com/wyj/api/AppLifeCycleManager.class"
+    static final REGISTER_CLASS_FILE_NAME = "com/wyj/api/ModuleLifecycleManager.class"
 
-    //包含生命周期管理初始化类的文件，及包含 com.wyj.api.AppLifeCycleManager 类的class文件或者jar文件
+    //包含生命周期管理初始化类的文件，及包含 com.wyj.api.ModuleLifecycleManager 类的class文件或者jar文件
     static File FILE_CONTAINS_INIT_CLASS
 
     /**
@@ -44,7 +44,7 @@ class ScanUtil {
             JarEntry jarEntry = enumeration.nextElement()
             String entryName = jarEntry.getName()
             if (entryName == REGISTER_CLASS_FILE_NAME) {
-                //标记这个jar包包含 AppLifeCycleManager.class
+                //标记这个jar包包含 ModuleLifecycleManager.class
                 //扫描结束后，我们会生成注册代码到这个文件里
                 FILE_CONTAINS_INIT_CLASS = destFile
             } else {

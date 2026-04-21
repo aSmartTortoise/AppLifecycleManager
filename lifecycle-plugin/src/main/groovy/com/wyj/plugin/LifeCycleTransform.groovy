@@ -44,7 +44,7 @@ class LifeCycleTransform extends Transform {
             boolean isIncremental) throws IOException, TransformException, InterruptedException {
         println "\nstart to transform-------------->>>>>>>"
 
-        def appLikeProxyClassList = []
+        def proxyClassList = []
         inputs.each { TransformInput input ->
             input.directoryInputs.each { DirectoryInput directoryInput ->
 
@@ -52,7 +52,7 @@ class LifeCycleTransform extends Transform {
                     directoryInput.file.eachFileRecurse {File file ->
                         //形如 Jie$$****$$Proxy.class 的类，是我们要找的目标class
                         if (ScanUtil.isTargetProxyClass(file)) {
-                            appLikeProxyClassList.add(file.name)
+                            proxyClassList.add(file.name)
                         }
                     }
                 }
@@ -76,7 +76,7 @@ class LifeCycleTransform extends Transform {
                     if (ScanUtil.shouldProcessPreDexJar(src.absolutePath)) {
                         List<String> list = ScanUtil.scanJar(src, dest)
                         if (list != null) {
-                            appLikeProxyClassList.addAll(list)
+                            proxyClassList.addAll(list)
                         }
                     }
                 }
@@ -85,14 +85,14 @@ class LifeCycleTransform extends Transform {
         }
 
         println ""
-        appLikeProxyClassList.forEach({fileName ->
+        proxyClassList.forEach({fileName ->
             println "file name = " + fileName
         })
-        println "\n包含AppLifeCycleManager类的jar文件"
+        println "\n包含ModuleLifecycleManager类的jar文件"
         println ScanUtil.FILE_CONTAINS_INIT_CLASS.getAbsolutePath()
         println "开始自动注册"
 
-        new AppLikeCodeInjector(appLikeProxyClassList).execute()
+        new ModuleLifecycleCodeInjector(proxyClassList).execute()
 
         println "transform finish----------------<<<<<<<\n"
     }

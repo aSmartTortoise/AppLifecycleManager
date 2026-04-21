@@ -1,0 +1,119 @@
+' ============================================================
+' IModuleLifecycle 注册流程 UML 时序图（PlantUML）
+' 配套文档：IModuleLifecycle实例化与注册流程.md
+' 包含两张时序图：
+'   1) 编译期：APT 生成代理 + 插件 ASM 注入
+'   2) 运行期：init() 实例化代理 → 业务类 → 排序 → onCreate
+' ============================================================
+
+@startuml IModuleLifecycle-编译期时序图
+title 编译期：APT 生成代理 + 插件 ASM 注入
+
+skinparam sequenceMessageAlign center
+skinparam wrapWidth 240
+skinparam ParticipantPadding 14
+skinparam BoxPadding 10
+autonumber
+
+participant "Gradle 构建" as Gradle
+participant "ModuleLifecycleProcessor\n(lifecycle-apt)" as APT
+participant "ModuleLifecycleProxyClassCreator" as Creator
+participant "代理源码文件\nJie$$Xxx$$Proxy.java" as GenSrc
+participant "javac / kotlinc" as Javac
+participant "LifeCycleTransform" as TF
+participant "ScanUtil" as SU
+participant "ModuleLifecycleCodeInjector" as Inj
+participant "ModuleLifecycleManager.class\n(宿主 jar 内)" as MgrCls
+
+== 1) 注解处理阶段 ==
+Gradle -> APT : process(@ModuleLifecycle 元素集合)
+loop 每个被注解的 TypeElement
+    APT -> APT : 校验 element 实现 com.wyj.api.IModuleLifecycle
+    APT -> Creator : new ModuleLifecycleProxyClassCreator(elements, typeElement)
+    APT -> Creator : generateJavaCode()
+    Creator --> APT : 代理类 Java 源码字符串
+    APT -> GenSrc : Filer.createSourceFile\n+ writer.write(code)
+end
+GenSrc -> Javac : 作为源码被编译成 .class
+
+== 2) Transform 阶段（打包前） ==
+Gradle -> TF : transform(Context, inputs, referencedInputs,\noutputProvider, isIncremental)
+loop 每个 TransformInput
+    TF -> SU : directoryInputs 按 isTargetProxyClass\n匹配 Jie$$*$$Proxy.class
+    SU --> TF : 命中的代理类名
+    TF -> SU : jarInputs 下 scanJar(jar, dest)
+    SU -> SU : 识别 com/wyj/lifecycle/apt/proxy/*.class\n并记录 FILE_CONTAINS_INIT_CLASS
+    SU --> TF : 代理类名列表
+    TF -> TF : FileUtils.copyDirectory / copyFile\n拷贝到 outputProvider 分配位置
+end
+TF -> Inj : new ModuleLifecycleCodeInjector(proxyClassList).execute()
+Inj -> MgrCls : ASM 读取 ModuleLifecycleManager.class
+Inj -> MgrCls : 改写 loadModuleLifecycle()：\n循环插入 registerModuleLifecycle("全限定名")\n(ModuleLifecycleCodeInjector.groovy:97-106)
+Inj --> Gradle : 写回宿主 jar（就地覆盖）
+
+@enduml
+
+
+@startuml IModuleLifecycle-运行期时序图
+title 运行期：init() 实例化代理 → 业务类 → 排序 → onCreate
+
+skinparam sequenceMessageAlign center
+skinparam wrapWidth 240
+skinparam ParticipantPadding 14
+skinparam BoxPadding 10
+autonumber
+
+actor "用户" as User
+participant "MainActivity" as Act
+participant "ModuleLifecycleManager" as Mgr
+participant "loadModuleLifecycle()\n（已被 ASM 注入）" as Load
+participant "Jie$$XxxLifecycle$$Proxy\n(代理类, 4 个之一)" as Proxy
+participant "XxxLifecycle\n(业务类, 4 个之一)" as Biz
+collections "MODULE_LIFECYCLE_LIST" as LST
+
+User -> Act : 点击按钮触发初始化
+Act -> Mgr : init(getApplicationContext())
+
+alt 已初始化过 (INIT == true)
+    Mgr --> Act : 直接返回
+else 首次调用
+    Mgr -> Mgr : INIT = true
+    Mgr -> Load : loadModuleLifecycle()
+
+    loop 注入的 4 条 registerModuleLifecycle 调用\n(按注入顺序：A, B, C, D)
+        Load -> Mgr : registerModuleLifecycle(\n"com.wyj.lifecycle.apt.proxy.Jie$$*$$Proxy")
+        Mgr -> Proxy : Class.forName(name)\n.getConstructor().newInstance()
+        activate Proxy
+        Proxy -> Biz : new XxxLifecycle()
+        activate Biz
+        Biz --> Proxy : 业务实例 mModuleLifecycle
+        deactivate Biz
+        Proxy --> Mgr : 代理实例 (IModuleLifecycle)
+        deactivate Proxy
+        Mgr -> Mgr : REGISTER_BY_PLUGIN = true
+        Mgr -> LST : MODULE_LIFECYCLE_LIST.add(proxy)
+    end
+
+    note over Mgr, LST
+        若 REGISTER_BY_PLUGIN 仍为 false，
+        走 scanClassFile() 反射扫 dex 注册（降级路径）
+    end note
+
+    Mgr -> LST : Collections.sort(MODULE_LIFECYCLE_LIST,\n                 PriorityComparator)
+    note right of LST
+        按 getPriority() 倒序：
+        C(10) → D(7) → A(5) → B(5)
+        A/B 优先级相同，sort 稳定性保留入队顺序
+    end note
+
+    loop 排序后的 MODULE_LIFECYCLE_LIST
+        Mgr -> Proxy : onCreate(context)
+        Proxy -> Biz : mModuleLifecycle.onCreate(context)
+        Biz --> Proxy : (void)
+        Proxy --> Mgr : (void)
+    end
+
+    Mgr --> Act : init() 返回
+end
+
+@enduml

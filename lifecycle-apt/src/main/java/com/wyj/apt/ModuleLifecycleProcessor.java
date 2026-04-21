@@ -1,7 +1,7 @@
 package com.wyj.apt;
 
 import com.google.auto.service.AutoService;
-import com.wyj.annotation.lifecycle.AppLifeCycle;
+import com.wyj.annotation.lifecycle.ModuleLifecycle;
 
 import java.io.Writer;
 import java.util.HashMap;
@@ -22,10 +22,10 @@ import javax.lang.model.util.Elements;
 import javax.tools.JavaFileObject;
 
 @AutoService(Processor.class)
-public class AppLikeProcessor extends AbstractProcessor {
+public class ModuleLifecycleProcessor extends AbstractProcessor {
 
     private Elements mElementUtils;
-    private Map<String, AppLikeProxyClassCreator> mMap = new HashMap<>();
+    private Map<String, ModuleLifecycleProxyClassCreator> mMap = new HashMap<>();
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnvironment) {
@@ -41,7 +41,7 @@ public class AppLikeProcessor extends AbstractProcessor {
     @Override
     public Set<String> getSupportedAnnotationTypes() {
         Set<String> set = new LinkedHashSet<>();
-        set.add(AppLifeCycle.class.getCanonicalName());
+        set.add(ModuleLifecycle.class.getCanonicalName());
         return set;
     }
 
@@ -52,41 +52,41 @@ public class AppLikeProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
-        Set<? extends Element> elements = roundEnvironment.getElementsAnnotatedWith(AppLifeCycle.class);
+        Set<? extends Element> elements = roundEnvironment.getElementsAnnotatedWith(ModuleLifecycle.class);
         mMap.clear();
         for (Element element : elements) {
             if (!element.getKind().isClass()) {
-                throw new RuntimeException("Annotation AppLifeCycle can only be used in class.");
+                throw new RuntimeException("Annotation ModuleLifecycle can only be used in class.");
             }
             TypeElement typeElement = (TypeElement) element;
 
-            //这里检查一下，使用了该注解的类，同时必须要实现com.wyj.api.IAppLike接口，否则会报错，因为我们要实现一个代理类
+            //这里检查一下，使用了该注解的类，同时必须要实现com.wyj.api.IModuleLifecycle接口，否则会报错，因为我们要实现一个代理类
             List<? extends TypeMirror> mirrorList = typeElement.getInterfaces();
             if (mirrorList.isEmpty()) {
-                throw new RuntimeException(typeElement.getQualifiedName() + " must implements interface com.wyj.api.IAppLike");
+                throw new RuntimeException(typeElement.getQualifiedName() + " must implements interface com.wyj.api.IModuleLifecycle");
             }
             boolean checkInterfaceFlag = false;
             for (TypeMirror mirror : mirrorList) {
-                if ("com.wyj.api.IAppLike".equals(mirror.toString())) {
+                if ("com.wyj.api.IModuleLifecycle".equals(mirror.toString())) {
                     checkInterfaceFlag = true;
                 }
             }
             if (!checkInterfaceFlag) {
-                throw new RuntimeException(typeElement.getQualifiedName() + " must implements interface com.wyj.api.IAppLike");
+                throw new RuntimeException(typeElement.getQualifiedName() + " must implements interface com.wyj.api.IModuleLifecycle");
             }
 
             String fullClassName = typeElement.getQualifiedName().toString();
             if (!mMap.containsKey(fullClassName)) {
                 System.out.println("process class name : " + fullClassName);
-                AppLikeProxyClassCreator creator = new AppLikeProxyClassCreator(mElementUtils, typeElement);
+                ModuleLifecycleProxyClassCreator creator = new ModuleLifecycleProxyClassCreator(mElementUtils, typeElement);
                 mMap.put(fullClassName, creator);
             }
         }
 
         System.out.println("start to generate proxy class code");
-        for (Map.Entry<String, AppLikeProxyClassCreator> entry : mMap.entrySet()) {
+        for (Map.Entry<String, ModuleLifecycleProxyClassCreator> entry : mMap.entrySet()) {
             String className = entry.getKey();
-            AppLikeProxyClassCreator creator = entry.getValue();
+            ModuleLifecycleProxyClassCreator creator = entry.getValue();
             System.out.println("generate proxy class for " + className);
 
             try {

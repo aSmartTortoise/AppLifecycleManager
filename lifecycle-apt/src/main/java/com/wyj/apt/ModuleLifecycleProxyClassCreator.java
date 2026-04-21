@@ -7,13 +7,13 @@ import javax.lang.model.util.Elements;
 
 
 
-public class AppLikeProxyClassCreator {
+public class ModuleLifecycleProxyClassCreator {
 
     private Elements mElementUtils;
     private TypeElement mTypeElement;
     private String mProxyClassSimpleName;
 
-    public AppLikeProxyClassCreator(Elements elements, TypeElement typeElement) {
+    public ModuleLifecycleProxyClassCreator(Elements elements, TypeElement typeElement) {
         mElementUtils = elements;
         mTypeElement = typeElement;
         mProxyClassSimpleName = LifeCycleConfig.PROXY_CLASS_PREFIX +
@@ -41,33 +41,33 @@ public class AppLikeProxyClassCreator {
 
         //设置import部分
         sb.append("import android.content.Context;\n");
-        sb.append("import com.wyj.api.IAppLike;\n");
+        sb.append("import com.wyj.api.IModuleLifecycle;\n");
         sb.append("import ").append(mTypeElement.getQualifiedName()).append(";\n\n");
 
         sb.append("public class ").append(mProxyClassSimpleName)
-                .append(" implements ").append("IAppLike ").append(" {\n\n");
+                .append(" implements ").append("IModuleLifecycle ").append(" {\n\n");
 
         //设置变量
-        sb.append("  private ").append(mTypeElement.getSimpleName().toString()).append(" mAppLike;\n\n");
+        sb.append("  private ").append(mTypeElement.getSimpleName().toString()).append(" mModuleLifecycle;\n\n");
 
         //构造函数
         sb.append("  public ").append(mProxyClassSimpleName).append("() {\n");
-        sb.append("  mAppLike = new ").append(mTypeElement.getSimpleName().toString()).append("();\n");
+        sb.append("  mModuleLifecycle = new ").append(mTypeElement.getSimpleName().toString()).append("();\n");
         sb.append("  }\n\n");
 
         //onCreate()方法
         sb.append("  public void onCreate(Context context) {\n");
-        sb.append("    mAppLike.onCreate(context);\n");
+        sb.append("    mModuleLifecycle.onCreate(context);\n");
         sb.append("  }\n\n");
 
         //getPriority()方法
         sb.append("  public int getPriority() {\n");
-        sb.append("    return mAppLike.getPriority();\n");
+        sb.append("    return mModuleLifecycle.getPriority();\n");
         sb.append("  }\n\n");
 
         //onTerminate方法
         sb.append("  public void onTerminate() {\n");
-        sb.append("    mAppLike.onTerminate();\n");
+        sb.append("    mModuleLifecycle.onTerminate();\n");
         sb.append("  }\n\n");
 
 

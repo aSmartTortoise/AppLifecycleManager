@@ -137,8 +137,8 @@ AGP 会为该 Transform 创建 Task 并插入构建链。
   基类的新版 `transform(TransformInvocation)` 默认会把调用委托到这个旧版方法，所以覆写旧版仍能工作；但如果之后迁移到新 API，建议直接覆写 `transform(TransformInvocation)` 并从 `invocation.getInputs()` / `getOutputProvider()` 取参数，可顺带拿到 `isIncremental` 与 `context`。
 - 方法体内：
   1. 遍历 `inputs` 的 `directoryInputs`，用 `ScanUtil.isTargetProxyClass` 匹配 `Jie$$*$$Proxy.class` 收集代理类名，然后用 `FileUtils.copyDirectory` **把目录完整拷贝到 `outputProvider.getContentLocation(..., Format.DIRECTORY)` 分配的位置**——对应前文"必须把内容写回输出"的约束。
-  2. 遍历 `jarInputs`：先用文件绝对路径的 MD5 作为输出名后缀以避免同名冲突（`DigestUtils.md5Hex`）；只对以 `.jar` 结尾且通过 `ScanUtil.shouldProcessPreDexJar` 白名单（排除 `com.android.support`、`android/m2repository`）的 jar 调 `ScanUtil.scanJar`，把 `com/wyj/lifecycle/apt/proxy/` 下的 class 名加进列表，并把包含 `com/wyj/api/AppLifeCycleManager.class` 的那个 jar 记录到 `ScanUtil.FILE_CONTAINS_INIT_CLASS`；扫描完后统一用 `FileUtils.copyFile(jarInput.file, dest)` 把 jar 原样拷贝到输出位置（注：这里拷贝的仍是未注入前的源文件，真正的字节码改写由下一步的 `AppLikeCodeInjector` 在 `FILE_CONTAINS_INIT_CLASS` 指向的目标 jar 上就地完成）。
-  3. 所有类名收齐后交给 `AppLikeCodeInjector`，用 ASM 改写 `AppLifeCycleManager.loadAppLike()` 方法，注入一串 `registerAppLike("代理类全限定名")` 调用。
+  2. 遍历 `jarInputs`：先用文件绝对路径的 MD5 作为输出名后缀以避免同名冲突（`DigestUtils.md5Hex`）；只对以 `.jar` 结尾且通过 `ScanUtil.shouldProcessPreDexJar` 白名单（排除 `com.android.support`、`android/m2repository`）的 jar 调 `ScanUtil.scanJar`，把 `com/wyj/lifecycle/apt/proxy/` 下的 class 名加进列表，并把包含 `com/wyj/api/ModuleLifecycleManager.class` 的那个 jar 记录到 `ScanUtil.FILE_CONTAINS_INIT_CLASS`；扫描完后统一用 `FileUtils.copyFile(jarInput.file, dest)` 把 jar 原样拷贝到输出位置（注：这里拷贝的仍是未注入前的源文件，真正的字节码改写由下一步的 `ModuleLifecycleCodeInjector` 在 `FILE_CONTAINS_INIT_CLASS` 指向的目标 jar 上就地完成）。
+  3. 所有类名收齐后交给 `ModuleLifecycleCodeInjector`，用 ASM 改写 `ModuleLifecycleManager.loadModuleLifecycle()` 方法，注入一串 `registerModuleLifecycle("代理类全限定名")` 调用。
 
 > 注：当前实现**没有利用真正的增量能力**——虽然 `isIncremental()` 声明为 `true`，但 `transform` 内部没有根据 `JarInput.getStatus()` / `DirectoryInput.getChangedFiles()` 分支处理，每次都全量拷贝 + 扫描 + 注入。代价是 class 任意变动都会触发完整重跑；优点是实现简单、不会漏处理。
 
@@ -153,7 +153,7 @@ AGP 会为该 Transform 创建 Task 并插入构建链。
   ```kotlin
   androidComponents.onVariants { variant ->
       variant.instrumentation.transformClassesWith(
-          AppLikeAsmFactory::class.java,
+          ModuleLifecycleAsmFactory::class.java,
           InstrumentationScope.ALL
       ) { /* params */ }
   }

@@ -3,7 +3,7 @@ package com.wyj.api;
 import android.content.Context;
 
 
-public interface IAppLike {
+public interface IModuleLifecycle {
 
     int MAX_PRIORITY = 10;
     int MIN_PRIORITY = 1;
