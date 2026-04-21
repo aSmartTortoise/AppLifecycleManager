@@ -1,6 +1,6 @@
 ' ============================================================
 ' IModuleLifecycle 注册流程 UML 时序图（PlantUML）
-' 配套文档：IModuleLifecycle实例化与注册流程.md
+' 配套文档：IModuleLifecycle接口作用与注册流程.md
 ' 包含两张时序图：
 '   1) 编译期：APT 生成代理 + 插件 ASM 注入
 '   2) 运行期：init() 实例化代理 → 业务类 → 排序 → onCreate
