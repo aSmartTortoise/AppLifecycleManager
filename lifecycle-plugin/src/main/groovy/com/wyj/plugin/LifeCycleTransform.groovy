@@ -57,7 +57,11 @@ class LifeCycleTransform extends Transform {
                     }
                 }
 
-                def dest = outputProvider.getContentLocation(directoryInput.name, directoryInput.contentTypes, directoryInput.scopes, Format.DIRECTORY)
+                def dest = outputProvider.getContentLocation(
+                        directoryInput.name,
+                        directoryInput.contentTypes,
+                        directoryInput.scopes,
+                        Format.DIRECTORY)
                 FileUtils.copyDirectory(directoryInput.file, dest)
             }
 
@@ -69,7 +73,11 @@ class LifeCycleTransform extends Transform {
                 if (jarName.endsWith(".jar")) {
                     jarName = jarName.substring(0, jarName.length() - 4)
                 }
-                def dest = outputProvider.getContentLocation(jarName + md5, jarInput.contentTypes, jarInput.scopes, Format.JAR)
+                def dest = outputProvider.getContentLocation(
+                        jarName + md5,
+                        jarInput.contentTypes,
+                        jarInput.scopes,
+                        Format.JAR)
                 if (jarInput.file.getAbsolutePath().endsWith(".jar")) {
                     //处理jar包里的代码
                     File src = jarInput.file

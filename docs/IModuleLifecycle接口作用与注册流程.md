@@ -1,12 +1,8 @@
 # IModuleLifecycle 接口作用与注册流程
 
-## 一、IModuleLifecycle 接口的作用
+## 1、IModuleLifecycle 接口的作用
 
 `IModuleLifecycle` 定义在 `lifecycle-api` 模块（`lifecycle-api/src/main/java/com/wyj/api/IModuleLifecycle.java`），是本项目**组件生命周期管理**体系的核心契约。
-
-### 1.1 让各业务组件声明自己的"模块级生命周期"
-
-每个业务模块（如 `module-1`）都可以有一个或多个实现了 `IModuleLifecycle` 的类，相当于"子 Application"。它们各自在宿主 `Application` 启动时被调用 `onCreate(Context)` 做初始化、在终止时收到 `onTerminate()`，从而让组件自己管理自己的启动逻辑，避免把所有初始化代码硬编码进宿主的 `Application`。
 
 ```java
 public interface IModuleLifecycle {
@@ -23,18 +19,22 @@ public interface IModuleLifecycle {
 }
 ```
 
+### 1.1 让各业务组件声明自己的生命周期
+
+每个业务模块（如 `module-1`）都可以有一个或多个实现了 `IModuleLifecycle` 的类，相当于"子 Application"。它们各自在宿主 `Application` 启动时被调用 `onCreate(Context)` 做初始化，在终止时收到 `onTerminate()`，从而让组件自己管理自己的启动逻辑，避免把所有初始化代码硬编码进宿主的 `Application`。
+
 ### 1.2 通过 `getPriority()` 控制初始化顺序
 
-接口内置三档常量 `MAX_PRIORITY = 10` / `NORM_PRIORITY = 5` / `MIN_PRIORITY = 1`。`ModuleLifecycleManager.init()` 会按优先级倒序排序后再依次派发 `onCreate`（`ModuleLifecycleManager.java:72`），保证有依赖关系的组件能以正确顺序启动——本 demo 中的实际排序结果即 **C(10) → D(7) → A(5) → B(5)**。
+`ModuleLifecycleManager.init()` 会按优先级倒序排序后再依次派发 `onCreate`（`ModuleLifecycleManager.java:72`），保证有依赖关系的组件能以正确顺序启动。
 
 ### 1.3 作为 APT 与 Gradle 插件的类型约束
 
-- `lifecycle-apt` 的 `ModuleLifecycleProcessor` 在编译期校验：被 `@ModuleLifecycle` 注解的类**必须**实现 `com.wyj.api.IModuleLifecycle`，否则直接抛 `RuntimeException` 让编译失败（`ModuleLifecycleProcessor.java:66-76`）。
+- `lifecycle-apt` 的 `ModuleLifecycleProcessor` 在编译期会进行校验：被 `@ModuleLifecycle` 注解的类**必须**实现 `com.wyj.api.IModuleLifecycle`，否则直接抛 `RuntimeException` 让编译失败（`ModuleLifecycleProcessor.java:66-76`）。
 - APT 生成的 `Jie$$Xxx$$Proxy` 代理类本身也 `implements IModuleLifecycle`；`lifecycle-plugin` 通过 ASM 将这些代理的全限定类名注入到 `ModuleLifecycleManager.loadModuleLifecycle()`，运行时反射实例化后加入 `List<IModuleLifecycle>`（`ModuleLifecycleManager.java:22`）。
 
 **一句话概括**：`IModuleLifecycle` 是"组件级 Application 生命周期"的统一抽象，让 APT 生成的代理、Gradle 插件的字节码注入、运行时的管理器三者能围绕同一个类型协作。
 
-## 二、参与的两层类
+## 2、参与的两层类
 
 - **业务实现类**（当前项目共 4 个，全部用 `@ModuleLifecycle` 标注并直接实现 `IModuleLifecycle`。`IModuleLifecycle` 中定义 `MAX_PRIORITY=10`、`NORM_PRIORITY=5`、`MIN_PRIORITY=1`）：
   - `app` 模块：`com.wyj.lifecycle.demo.ModuleALifecycle`（`NORM_PRIORITY` = 5）、`com.wyj.lifecycle.demo.ModuleBLifecycle`（`NORM_PRIORITY` = 5）。
@@ -44,7 +44,7 @@ public interface IModuleLifecycle {
 
 所以真正放进 `ModuleLifecycleManager.MODULE_LIFECYCLE_LIST` 的是代理对象，业务实现类实例是被代理对象的构造器顺带 `new` 出来的。
 
-## 三、实例化与注册的触发点
+## 3、实例化与注册的触发点
 
 用户在 `MainActivity` 里调用 `ModuleLifecycleManager.init(context)`（`app/.../MainActivity.java:21`），这是唯一入口。`init` 内部按是否经过插件注入，走两条路径：
 
@@ -157,6 +157,54 @@ APT 是 Java 编译器自带的一个扩展点，允许开发者编写 `javax.an
 - 生成的代理类用途：统一实现 `IModuleLifecycle`、拥有**公开无参构造器**，供后续 ASM 注入的 `Class.forName(name).newInstance()` 能无差别地反射创建。
 
 > 本项目用字符串拼接来生成代码；工业级方案通常改用 **JavaPoet**（生成 Java）或 **KotlinPoet**（生成 Kotlin），可避免转义错误并提供类型安全的 API。
+
+#### `ModuleLifecycleProcessor` 类逐项剖析
+
+`com.wyj.apt.ModuleLifecycleProcessor` 是本项目里 APT 的具体实现，仅约 100 行却承担了"扫描 → 校验 → 生成代理"的全部职责。它是整个自动注册体系的**第一棒**：把注解信息物化成代理类源码，让下游 Gradle 插件能通过包名扫描到所有组件，无需反射、无需运行时扫描 classpath。
+
+**1. 注册为 SPI 服务（`ModuleLifecycleProcessor.java:24`）**
+
+**SPI**即Service Provider Interface。
+
+```java
+@AutoService(Processor.class)
+public class ModuleLifecycleProcessor extends AbstractProcessor { ... }
+```
+
+`@AutoService` 由 Google `auto-service` 提供，编译期自动生成 `META-INF/services/javax.annotation.processing.Processor`，让 `javac` 通过 SPI 机制发现并加载本处理器，无需手动维护服务清单。
+
+SPI 是 JDK 标准的"插件发现"约定；@AutoService 只是替你把 SPI 清单文件自动写出来，让 javac 能找到
+  ModuleLifecycleProcessor 并执行它。
+
+**2. 声明处理范围（`ModuleLifecycleProcessor.java:42-51`）**
+
+- `getSupportedAnnotationTypes()`：只返回 `ModuleLifecycle` 一个注解的全限定名，编译器据此跳过其他注解，提升处理效率。
+- `getSupportedSourceVersion()`：声明支持到 `RELEASE_7`，与本项目 `JavaVersion.VERSION_1_8` 兼容。
+
+**3. `process()` 主流程（`ModuleLifecycleProcessor.java:54-104`）**
+
+整个流程分两阶段：
+
+- **第一阶段：扫描 + 校验**（第 55-84 行）
+  - `roundEnvironment.getElementsAnnotatedWith(ModuleLifecycle.class)` 拿到本轮所有被标注的元素。
+  - `mMap.clear()` 清空跨轮缓存，避免增量编译重复处理。
+  - 对每个元素做三道校验：
+    - 必须是类（`element.getKind().isClass()`，第 58 行）；
+    - 必须直接实现接口（`typeElement.getInterfaces()` 不为空，第 65 行）；
+    - 实现的接口中必须包含 `com.wyj.api.IModuleLifecycle`（精确字符串匹配 `mirror.toString()`，第 70 行）。
+  - 任一校验失败直接 `throw new RuntimeException(...)`，让编译期立即失败——这是 6.1 节里"编译期合约"的具体落地。
+  - 校验通过的类按全限定名去重存入 `mMap`，每个对应一个 `ModuleLifecycleProxyClassCreator`。
+- **第二阶段：生成代理类源码**（第 86-101 行）
+  - 遍历 `mMap`，对每个 creator 调用：
+    - `getProxyClassFullName()` → 计算生成类的 FQN，包名固定为 `com.wyj.lifecycle.apt.proxy`（来自 `LifeCycleConfig.PROXY_CLASS_PACKAGE_NAME`，与下游 ASM 插件的扫描契约一致）；
+    - `generateJavaCode()` → 用字符串拼接出代理类源码（含无参构造器、业务实现字段，以及 `onCreate` / `onTerminate` / `getPriority` 的转发逻辑）。
+  - 通过 `processingEnv.getFiler().createSourceFile(...)` 写入 `build/generated/source/...`，新文件会作为后续编译轮的输入再次进入 `javac`。
+
+**4. 几个值得留意的细节**
+
+- **接口校验只看"直接实现"**：`typeElement.getInterfaces()` 不会递归到父类，所以"子类继承一个已实现 `IModuleLifecycle` 的父类"会被判为不合规——这是该处理器的隐含限制。
+- **生成代码异常被吞**：`createSourceFile` / `writer.write` 抛异常时只 `printStackTrace()`（第 99 行），不会中断编译，调试时需要留意 `javac` 输出。
+- **`mMap` 是实例字段而非局部变量**：让"扫描收集"与"批量生成"两阶段解耦，便于阅读和扩展；每轮 `process()` 开头先 `clear()` 即可避免跨轮污染。
 
 #### APT 的局限
 
